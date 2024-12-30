@@ -1,4 +1,4 @@
-30.12.2024\n
--Menu
--Przechodzenie między oknami
--Exit
+30.12.2024
+-Menu,
+-Przechodzenie między oknami,
+-Exit,
