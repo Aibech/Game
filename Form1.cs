@@ -2,11 +2,14 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Media;
+using System.IO;
 
 
 namespace Game
@@ -32,6 +35,22 @@ namespace Game
         private int currentLevel = 1; // Aktualny poziom gry
         private bool[] unlockedLevels = new bool[3] { true, false, false }; // Poziomy odblokowane
 
+        private List<Rectangle> letters = new List<Rectangle>(); // Lista prostokątów liter
+        private List<char> letterValues = new List<char>(); // Lista odpowiadających im liter
+        private Random random = new Random(); // Generator losowy dla liter
+        private Timer letterTimer; // Timer do przesuwania liter
+        private int letterSpeed = 15; // Prędkość liter
+        private int letterWidth = 50; // Szerokość prostokąta litery
+        private int letterHeight = 50; // Wysokość prostokąta litery
+
+        // Zmienne globalne
+        private List<string> wordList = new List<string> { "krowa", "pies", "kot", "kura", "kaczka", "kogut" };
+        private string currentWord;
+        private int currentIndex = 0;
+        private int currentPoints = 0;
+        private int targetPoints;
+
+        private SoundPlayer successSoundPlayer;
 
         public Game()
         {
@@ -69,6 +88,13 @@ namespace Game
             levelSelectionOptions[2] = CreateLabel("Poziom 3", 100, 150);
             levelSelectionOptions[3] = CreateLabel("Wróć", 100, 200);
 
+            // Inicjalizacja timera liter
+            letterTimer = new Timer();
+            letterTimer.Interval = 100; // Interwał co 100 ms
+            letterTimer.Tick += LetterTimer_Tick;
+            letterTimer.Start();
+
+
             // Dodanie menu głównego do formularza
             foreach (var label in mainMenuOptions)
             {
@@ -100,7 +126,72 @@ namespace Game
             gameTimer.Interval = 1000; // 1 sekunda
             gameTimer.Tick += GameTimer_Tick;
 
+            // Inicjalizacja zmiennych
+            currentWord = wordList[0];
+            targetPoints = wordList.Count;
+
+            // Ładowanie dźwięku sukcesu
+            successSoundPlayer = new SoundPlayer(Path.Combine(Application.StartupPath, "audio", "success.wav"));
+
         }
+
+        private void LetterTimer_Tick(object sender, EventArgs e)
+        {
+            if (isPaused) return; // Jeśli gra jest wstrzymana, nie wykonujemy aktualizacji liter
+
+            // Dodaj nową literę z prawą krawędzią ekranu co pewien czas
+            if (random.Next(0, 50) < 2) // 2/50 szansy na dodanie litery w każdym interwale (rzadsze litery)
+            {
+                int trackY = this.ClientSize.Height - 3 * 150 + random.Next(0, 3) * 150; // Y w zależności od trasy
+                char newLetter = (char)random.Next('A', 'Z' + 1); // Losowa litera
+                Rectangle newRectangle = new Rectangle(this.ClientSize.Width, trackY + 50, letterWidth, letterHeight); // Prostokąt litery
+                letters.Add(newRectangle);
+                letterValues.Add(newLetter);
+            }
+
+            // Przesuwanie liter w lewo
+            for (int i = 0; i < letters.Count; i++)
+            {
+                Rectangle rect = letters[i];
+                rect.X -= letterSpeed; // Zwiększona prędkość liter
+                letters[i] = rect;
+            }
+
+            // Usuwanie liter, które dotarły do lewej krawędzi ekranu
+            for (int i = letters.Count - 1; i >= 0; i--)
+            {
+                if (letters[i].X + letterWidth < 0)
+                {
+                    letters.RemoveAt(i);
+                    letterValues.RemoveAt(i);
+                }
+            }
+
+            // Sprawdzenie kolizji z bohaterem
+            CheckCollisions();
+
+            // Odświeżanie ekranu
+            Invalidate();
+        }
+
+        private void CheckCollisions()
+        {
+            Rectangle characterRect = new Rectangle(100, this.ClientSize.Height - 3 * 150 + selectedTrack * 150 + 50, 50, 50);
+
+            for (int i = letters.Count - 1; i >= 0; i--)
+            {
+                if (letters[i].IntersectsWith(characterRect))
+                {
+                    // Kolizja - dodaj punkty i usuń literę
+                    wordsGuessed++;
+                    UpdateProgress(); // Aktualizacja postępu (punkty)
+                    letters.RemoveAt(i);
+                    letterValues.RemoveAt(i);
+                }
+            }
+        }
+
+
 
         // Funkcja tworząca etykiety menu
         private Label CreateLabel(string text, int x, int y)
@@ -192,6 +283,11 @@ namespace Game
 
         }
 
+        private void PauseLetters()
+        {
+            gameTimer.Stop(); // Zatrzymanie głównego timera gry
+        }
+
 
         // Funkcja wykonująca akcję w zależności od wybranej opcji w menu głównym
         private void ExecuteMainMenuOption(int option)
@@ -281,6 +377,14 @@ namespace Game
                 int characterY = trackTop + selectedTrack * trackHeight + (trackHeight - characterHeight) / 2;
 
                 g.FillRectangle(Brushes.Red, characterX, characterY, characterWidth, characterHeight);
+
+                // Rysowanie liter
+                for (int i = 0; i < letters.Count; i++)
+                {
+                    Rectangle letterRect = letters[i];
+                    g.FillRectangle(Brushes.Blue, letterRect);
+                    g.DrawString(letterValues[i].ToString(), new Font("Arial", 16, FontStyle.Bold), Brushes.White, letterRect.X + 10, letterRect.Y + 10);
+                }
             }
         }
 
@@ -337,7 +441,6 @@ namespace Game
 
         private void UpdateProgress()
         {
-            wordsGuessed++;
             levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}";
 
             if (wordsGuessed >= totalWords)
@@ -384,36 +487,21 @@ namespace Game
         // Funkcja pokazująca menu główne
         private void ShowMainMenu()
         {
+            ClearLetters(); // Czyszczenie liter
+
             inOptionsMenu = false;
             inLevelSelectionMenu = false;
             inGame = false; // Wyłącz tryb gry
             selectedOption = 0;
 
-            // Ukryj licznik czasu
-            timeLabel.Visible = false;
+            timeLabel.Visible = false; // Ukryj licznik czasu
 
-            // Ukryj etykiety poziomu
-            if (levelNameLabel != null)
-            {
-                levelNameLabel.Visible = false;
-            }
-            if (levelProgressLabel != null)
-            {
-                levelProgressLabel.Visible = false;
-            }
+            if (levelNameLabel != null) levelNameLabel.Visible = false;
+            if (levelProgressLabel != null) levelProgressLabel.Visible = false;
 
-            foreach (var label in optionsMenuOptions)
-            {
-                label.Visible = false;
-            }
-            foreach (var label in levelSelectionOptions)
-            {
-                label.Visible = false;
-            }
-            foreach (var label in mainMenuOptions)
-            {
-                label.Visible = true;
-            }
+            foreach (var label in optionsMenuOptions) label.Visible = false;
+            foreach (var label in levelSelectionOptions) label.Visible = false;
+            foreach (var label in mainMenuOptions) label.Visible = true;
 
             foreach (var control in this.Controls.OfType<Panel>())
             {
@@ -423,6 +511,7 @@ namespace Game
             HighlightOption(mainMenuOptions, 0);
             Invalidate(); // Odśwież ekran
         }
+
 
 
 
@@ -458,6 +547,17 @@ namespace Game
                 ShowRetryMenu();
             }
         }
+
+        private void GameOver()
+        {
+            inGame = false; // Wyłącz tryb gry
+            PauseLetters(); // Zatrzymaj litery
+
+            MessageBox.Show("Przegrałeś! Spróbuj ponownie.", "Koniec gry", MessageBoxButtons.OK);
+
+            RestartGame(); // Opcjonalnie: Restart gry po przegranej
+        }
+
         private void ShowRetryMenu()
         {
             var result = MessageBox.Show("Spróbuj jeszcze raz!", "Koniec gry",
@@ -473,23 +573,37 @@ namespace Game
             }
         }
 
+        private void ClearLetters()
+        {
+            letters.Clear(); // Usuwanie wszystkich prostokątów liter
+            letterValues.Clear(); // Usuwanie wszystkich wartości liter
+            Invalidate(); // Odświeżenie ekranu
+        }
+
+
         // Restartowanie gry
         private void RestartGame()
         {
+            ClearLetters(); // Czyszczenie liter
+
+            wordsGuessed = 0; // Reset postępu
+            levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}"; // Aktualizacja postępu
+
             remainingTime = 10; // Reset czasu
             selectedTrack = 1; // Reset trasy
             isPaused = false; // Wyłącz pauzę
+
             gameTimer.Start(); // Ponowne uruchomienie timera
             Invalidate(); // Odśwież ekran
         }
+
         private void PauseGame()
         {
             isPaused = true;
             gameTimer.Stop(); // Zatrzymanie licznika czasu
+            letterTimer.Stop(); // Zatrzymanie ruchu liter
 
-            // Wyświetlenie okienka pauzy
-            var result = MessageBox.Show("Pauza", "Gra wstrzymana",
-                MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
+            var result = MessageBox.Show("Pauza", "Gra wstrzymana", MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
 
             if (result == DialogResult.OK) // Kontynuuj grę
             {
@@ -497,7 +611,7 @@ namespace Game
             }
             else // Powrót do menu
             {
-                ShowMainMenu(); // Przejdź do menu głównego
+                ShowMainMenu();
             }
         }
 
@@ -506,8 +620,81 @@ namespace Game
         {
             isPaused = false;
             gameTimer.Start(); // Wznowienie licznika czasu
+            letterTimer.Start(); // Wznowienie ruchu liter
+        }
+        /*
+        // Metoda do sprawdzania litery
+        private void CheckLetter(char letter)
+        {
+            // Sprawdzamy, czy litera jest poprawna
+            if (letter == currentWord[currentIndex])
+            {
+                Console.WriteLine($"Prawidłowa litera: {letter}"); // Debug
+
+                // Wyświetlenie litery na środku ekranu
+                DisplayLetter(letter);
+
+                currentIndex++; // Przechodzimy do następnej litery
+
+                // Jeśli całe słowo zostało ułożone
+                if (currentIndex == currentWord.Length)
+                {
+                    Console.WriteLine($"Ułożono słowo: {currentWord}");
+                    PlaySuccessSound(); // Odtwórz dźwięk sukcesu
+                    currentPoints++;
+
+                    if (currentPoints == targetPoints)
+                    {
+                        Console.WriteLine("Wygrana poziomu!");
+                        LevelComplete(); // Metoda do obsługi końca poziomu
+                    }
+                    else
+                    {
+                        // Przechodzimy do następnego słowa
+                        currentWord = wordList[currentPoints];
+                        currentIndex = 0;
+                    }
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Nieprawidłowa litera: {letter}"); // Debug
+            }
+        }
+        */
+        /*
+        // Wyświetlenie litery na środku ekranu
+        private void DisplayLetter(char letter)
+        {
+            // Przyjmijmy, że masz `Label` o nazwie `lblLetter`
+            lblLetter.Text = letter.ToString();
+            lblLetter.TextAlign = ContentAlignment.MiddleCenter;
         }
 
+
+        // Odtwarzanie dźwięku sukcesu
+        private void PlaySuccessSound()
+        {
+            Debug.Log("Dźwięk sukcesu!"); // Debug
+                                          // Dodaj kod do odtwarzania dźwięku (np. AudioSource.Play())
+        }
+        */
+        // Obsługa końca poziomu
+        private void LevelComplete()
+        {
+            // Wyświetl wiadomość lub przejdź do następnego poziomu
+            MessageBox.Show("Gratulacje! Ukończyłeś poziom!");
+            this.Close(); // Zamknięcie formularza
+        }
+
+        /*
+        // Przykładowy kod obsługi dotyku / kliknięcia litery
+        void OnMouseDown()
+        {
+            char clickedLetter = gameObject.name[0]; // Przyjmujemy, że nazwa obiektu to litera
+            CheckLetter(clickedLetter);
+        }
+        */
 
     }
 }
