@@ -31,7 +31,7 @@ namespace Game
         private Label levelNameLabel; // Pole na nazwę poziomu
         private Label levelProgressLabel; // Pole na postęp poziomu
         private int wordsGuessed = 0; // Ile słów odgadnięto
-        private int totalWords = 6; // Łączna liczba słów do odgadnięcia w poziomie
+        private int totalWords; // Łączna liczba słów do odgadnięcia w poziomie
         private int currentLevel = 1; // Aktualny poziom gry
         private bool[] unlockedLevels = new bool[3] { true, false, false }; // Poziomy odblokowane
 
@@ -39,12 +39,13 @@ namespace Game
         private List<char> letterValues = new List<char>(); // Lista odpowiadających im liter
         private Random random = new Random(); // Generator losowy dla liter
         private Timer letterTimer; // Timer do przesuwania liter
-        private int letterSpeed = 20; // Prędkość liter
+        private int letterSpeed = 15; // Prędkość liter
         private int letterWidth = 50; // Szerokość prostokąta litery
         private int letterHeight = 50; // Wysokość prostokąta litery
 
         // Zmienne globalne
         private List<string> wordList = new List<string> { "KROWA", "PIES", "KOT", "KURA", "KACZKA", "KOGUT" };
+        private List<string> wordList2 = new List<string> { "COW", "DOG", "CAT", "CHICKEN", "DUCK", "COCK" };
         private string currentWord;
         private int currentIndex = 0;
         private int currentPoints = 0;
@@ -54,12 +55,12 @@ namespace Game
 
         private int maxHealth = 3; // Maksymalne zdrowie gracza
         private int currentHealth;
-        private string targetWord = "example"; // Słowo do ułożenia
+        
         private int currentLetterIndex = 0; // Indeks aktualnie oczekiwanej litery
-        private List<char> healthIcons = new List<char>(); // Lista ikon zdrowia
+        
         private int Interval = 16; // Interwał co 100 ms
 
-        private SoundPlayer successSoundPlayer;
+        
 
         private int letterGenerationCount = 0; // Licznik generowanych liter
 
@@ -69,6 +70,7 @@ namespace Game
         private int timeElapsed = 0; // Czas od ostatniej litery w milisekundach
 
         string hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon3.png");
+        string titlePath = Path.Combine(Application.StartupPath, "img", "title2.jpg");
 
         private int currentSoundIndex = 0; // Indeks aktualnego dźwięku
         private string audioDirectory = "audio"; // Katalog z plikami audio
@@ -80,9 +82,27 @@ namespace Game
             Path.Combine(Application.StartupPath, "audio", "5cock.wav"),
     }; // Lista plików audio
 
+        private int currentimgIndex = 0; // Indeks aktualnego dźwięku
+        private string imgDirectory = "img"; // Katalog z plikami img
+        private List<string> imgFiles = new List<string> { Path.Combine(Application.StartupPath, "img", "0cow.jpg"),
+            Path.Combine(Application.StartupPath, "img", "1dog.jpg"),
+            Path.Combine(Application.StartupPath, "img", "2cat.jpg"),
+            Path.Combine(Application.StartupPath, "img", "3chicken.jpg"),
+            Path.Combine(Application.StartupPath, "img", "4duck.jpg"),
+            Path.Combine(Application.StartupPath, "img", "5cock.jpg"),
+        };//Lista plików img
+
+        private PictureBox title;
+
+        
+
+        private PictureBox displayedPictureBox; // PictureBox do wyświetlania zdjęcia
         public Game()
         {
             InitializeComponent();
+
+            
+           
 
             levelProgressLabel = new Label
             {
@@ -97,12 +117,14 @@ namespace Game
             this.Controls.Add(levelProgressLabel);
 
             // Ustawienie pierwszego słowa
+
             currentWord = wordList[0];
+            
             collectedWordLabel = new Label
             {
                 Text = "",
                 ForeColor = Color.White,
-                Font = new Font("Arial", 20, FontStyle.Bold),
+                Font = new Font("Arial", 40, FontStyle.Bold),
                 Location = new Point(10, 80), // Pozycja w oknie
                 AutoSize = true
             };
@@ -110,9 +132,9 @@ namespace Game
 
             // Tworzenie menu głównego
             mainMenuOptions = new Label[3];
-            mainMenuOptions[0] = CreateLabel("Start Game", 100, 50);
-            mainMenuOptions[1] = CreateLabel("Options", 100, 100);
-            mainMenuOptions[2] = CreateLabel("Exit", 100, 150);
+            mainMenuOptions[0] = CreateLabel("Rozpocznij grę", 100, 50);
+            mainMenuOptions[1] = CreateLabel("Opcje", 100, 100);
+            mainMenuOptions[2] = CreateLabel("Wyjdź", 100, 150);
 
             // Tworzenie menu opcji
             optionsMenuOptions = new Label[3];
@@ -129,12 +151,12 @@ namespace Game
 
             // Inicjalizacja timera liter
             letterTimer = new Timer();
-            letterTimer.Interval = 16; // Interwał co 100 ms
+            letterTimer.Interval = 16; 
             letterTimer.Tick += LetterTimer_Tick;
-            letterTimer.Start();
+            
 
 
-            // Dodanie menu głównego do formularza
+           
             foreach (var label in mainMenuOptions)
             {
                 this.Controls.Add(label);
@@ -155,7 +177,7 @@ namespace Game
                 Font = new Font("Arial", 14, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.Black,
-                Visible = false // Ukryj licznik na początku
+                Visible = false 
             };
 
             timeLabel = new Label
@@ -166,12 +188,16 @@ namespace Game
                 Font = new Font("Arial", 14, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.Black,
-                Visible = false // Ukryj licznik na początku
+                Visible = false 
             };
 
            
             this.Controls.Add(timeLabel);
 
+            // Wczytanie ścieżki aktualnego obrazu
+            string currentImagePath = imgFiles[currentimgIndex];
+
+           
 
             // Inicjalizacja timera
             gameTimer = new Timer();
@@ -182,8 +208,8 @@ namespace Game
             currentWord = wordList[0];
             targetPoints = wordList.Count;
 
-            // Ładowanie dźwięku sukcesu
-            successSoundPlayer = new SoundPlayer(Path.Combine(Application.StartupPath, "audio", "success.wav"));
+            
+            collectedWordLabel.Visible = true;
 
         }
 
@@ -193,7 +219,7 @@ namespace Game
 
             timeElapsed += Interval; // Dodajemy czas interwału zegara
 
-            // Sprawdzamy, czy minęła 1 sekunda (1000 ms)
+            
             if (timeElapsed >= 500)
             {
                 timeElapsed = 0; // Resetujemy licznik czasu
@@ -282,7 +308,9 @@ namespace Game
                             UpdateProgress();
                             PlayCorrectSound(); // Odtwórz dźwięk
                             // Zmiana słowa na następne
+                            HideImage();
                             currentIndex++;
+                            currentimgIndex++;
                             if (currentIndex >= wordList.Count)
                             {
                                 MessageBox.Show("Ułożyłeś wszystkie słowa! Gra zakończona!", "Koniec gry");
@@ -298,7 +326,7 @@ namespace Game
                     }
                     else
                     {
-                        // Litera niepoprawna - można tu dodać logikę np. utraty zdrowia
+                        
                         hpLoss(hpPath);
                     }
                 }
@@ -308,7 +336,7 @@ namespace Game
 
 
 
-        // Funkcja tworząca etykiety menu
+        
         private Label CreateLabel(string text, int x, int y)
         {
             return new Label
@@ -400,7 +428,7 @@ namespace Game
 
     
 
-        // Funkcja wykonująca akcję w zależności od wybranej opcji w menu głównym
+        // akcję w zależności od wybranej opcji w menu głównym
         private void ExecuteMainMenuOption(int option)
         {
             switch (option)
@@ -417,7 +445,7 @@ namespace Game
             }
         }
 
-        // Funkcja wykonująca akcję w zależności od wybranej opcji w menu opcji
+        //  akcję w zależności od wybranej opcji w menu opcji
         private void ExecuteOptionsMenuOption(int option)
         {
             switch (option)
@@ -436,7 +464,7 @@ namespace Game
 
         // Funkcja wykonująca akcję w zależności od wybranego poziomu
         private int selectedTrack = 1; // Wybrany tor (0 - górny, 1 - środkowy, 2 - dolny)
-        private Label hpLabel;
+        private PictureBox hpLabel;
         private bool inGame = false; // Czy jesteśmy w trybie gry
 
         private void ExecuteLevelSelectionOption(int option)
@@ -475,7 +503,7 @@ namespace Game
                 // Rysowanie tras
                 Pen trackPen = new Pen(Color.White, 2);
                 int trackHeight = 150; // Powiększona wysokość trasy
-                int trackTop = this.ClientSize.Height - 3 * trackHeight; // Trasy zaczynają się od dołu
+                int trackTop = this.ClientSize.Height - 3 * trackHeight; 
 
                 for (int i = 0; i < 3; i++)
                 {
@@ -483,12 +511,12 @@ namespace Game
                 }
 
                 // Rysowanie postaci
-                int characterWidth = 80;
-                int characterHeight = 80;
+                int characterWidth = 100;
+                int characterHeight = 100;
                 int characterX = 100;
                 int characterY = trackTop + selectedTrack * trackHeight + (trackHeight - characterHeight) / 2;
 
-                Image characterImage = Image.FromFile("img/stick.png");
+                Image characterImage = Image.FromFile("img/stick4.png");
                 g.DrawImage(characterImage, characterX, characterY, characterWidth, characterHeight);
 
 
@@ -506,41 +534,50 @@ namespace Game
         // Rozpoczęcie gry
         private void StartGame()
         {
+            makeCollectedWordLabel();
+            currentWord = wordList[0];
+            wordsGuessed = 0;
+            totalWords = 6; 
+            levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}";
+            hpGracza = 3;
+            ClearLetters(); // Czyszczenie liter
 
+
+            remainingTime = 500; 
+            selectedTrack = 1;
+            isPaused = false; 
+
+            gameTimer.Start(); 
+            letterTimer.Start();
+            Invalidate(); 
             currentSoundIndex = 0;
-
+            currentimgIndex = 0;
             // Inicjalizacja listy plików audio
-            audioFiles = Directory.GetFiles(audioDirectory, "*.wav").ToList(); // Wczytanie plików WAV z katalogu
+            audioFiles = Directory.GetFiles(audioDirectory, "*.wav").ToList(); 
 
-            // Ustawienie właściwości formularza
-            //this.BackColor = Color.Black; // Tło formularza
-            //this.TransparencyKey = this.BackColor; // Czarny staje się przezroczysty
+            // Wczytanie plików graficznych z katalogu img
+            imgFiles = Directory.GetFiles(imgDirectory, "*.jpg").ToList(); 
 
+            
             // Wczytanie obrazu do tła
             Bitmap backgroundImage = new Bitmap(Path.Combine(Application.StartupPath, "img", "farm.png")); // Ścieżka do obrazu
             this.BackgroundImage = backgroundImage; // Ustawienie obrazu jako tła
-            this.BackgroundImageLayout = ImageLayout.Stretch; // Dopasowanie obrazu do rozmiaru okna
+            this.BackgroundImageLayout = ImageLayout.Stretch; 
 
-
-            wordsGuessed = 0;
-            totalWords = 6; // Możesz to zmieniać dla różnych poziomów
-            levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}";
-            hpGracza = 3;
+        
 
 
             currentLetterIndex = 0;
-            InitializeHealthIcons();
-
-            DisplayHealthIcons();
-            MessageBox.Show(wordList[currentIndex]);
+            
+            
             PlayCorrectSound();
-            // Pole na nazwę poziomu
+           
             levelNameLabel = new Label
             {
                 Text = "Poziom " + currentLevel,
                 Location = new Point(10, 10), // Lewy górny róg
                 AutoSize = true,
-                Font = new Font("Arial", 14, FontStyle.Bold),
+                Font = new Font("Arial", 20, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.Black
             };
@@ -550,43 +587,25 @@ namespace Game
             levelProgressLabel = new Label
             {
                 Text = $"{wordsGuessed}/{totalWords}",
-                Location = new Point(200, 10), // Obok wskaźnika poziomu
+                Location = new Point(200, 10), 
                 AutoSize = true,
-                Font = new Font("Arial", 14, FontStyle.Bold),
+                Font = new Font("Arial", 20, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = Color.Black
             };
             this.Controls.Add(levelProgressLabel);
 
-            string hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon3.png");
+            makeHPlabel();
+            
 
-            if (File.Exists(hpPath))
-            {
-                hpLabel = new Label
-                {
-                    Location = new Point(this.ClientSize.Width - 250, 10),
-                    BackColor = Color.Transparent,
-                    Image = Image.FromFile(hpPath),
-                    ImageAlign = ContentAlignment.MiddleCenter
-                };
-                this.Controls.Add(hpLabel);
-            }
-            else
-            {
-                Console.WriteLine(hpPath);
-                MessageBox.Show("Plik obrazu HP nie został znaleziony: " + hpPath, "Błąd", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            inGame = true; 
+            selectedTrack = 1; 
+            remainingTime = 1000;
 
-            this.Controls.Add(hpLabel);
-
-            inGame = true; // Ustaw tryb gry
-            selectedTrack = 1; // Reset trasy
-            remainingTime = 1000; // Reset czasu
-
-            // Włącz widoczność licznika czasu
+           
             timeLabel.Visible = true;
 
-            // Ukryj menu poziomu
+           
             foreach (var label in levelSelectionOptions)
             {
                 label.Visible = false;
@@ -594,12 +613,12 @@ namespace Game
 
             gameTimer.Start();
             letterTimer.Start();
-            Invalidate(); // Odśwież ekran gry
+            Invalidate(); 
         }
         private void hpLoss(string hpPath)
         {
             hpGracza--;
-            if(hpGracza == 2)//if(hpPath == Path.Combine(Application.StartupPath, "img", "hp_icon3.png"))
+            if(hpGracza == 2)
             {
                
                 hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon2.png");
@@ -607,6 +626,7 @@ namespace Game
             if(hpGracza == 1)
             {
                 hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon1.png");
+                ShowImage();
             }
             hpLabel.Image = Image.FromFile(hpPath);
             if(hpGracza == 0)
@@ -632,8 +652,8 @@ namespace Game
             gameTimer.Stop();
             letterTimer.Stop();
             MessageBox.Show("GRATULACJE! Poziom ukończony!");
-
-            // Odblokowanie następnego poziomu (jeśli istnieje)
+            letterSpeed = letterSpeed + 5;
+            
             if (currentLevel < unlockedLevels.Length)
             {
                 unlockedLevels[currentLevel] = true;
@@ -663,18 +683,17 @@ namespace Game
             HighlightOption(optionsMenuOptions, 0);
         }
 
-        // Funkcja pokazująca menu główne
-        // Funkcja pokazująca menu główne
+        
         private void ShowMainMenu()
         {
-            ClearLetters(); // Czyszczenie liter
+            ClearLetters(); 
 
             inOptionsMenu = false;
             inLevelSelectionMenu = false;
-            inGame = false; // Wyłącz tryb gry
+            inGame = false; 
             selectedOption = 0;
 
-            timeLabel.Visible = false; // Ukryj licznik czasu
+            timeLabel.Visible = false; 
 
             if (levelNameLabel != null) levelNameLabel.Visible = false;
             if (levelProgressLabel != null) levelProgressLabel.Visible = false;
@@ -685,12 +704,13 @@ namespace Game
 
             foreach (var control in this.Controls.OfType<Panel>())
             {
-                control.Visible = false; // Ukryj elementy planszy
+                control.Visible = false; 
             }
-            hpLabel.Visible = false;
-            collectedWordLabel.Visible = false;
+            if (hpLabel != null) hpLabel.Visible = false;
+            if (displayedPictureBox != null) displayedPictureBox.Visible = false; 
+            if (collectedWordLabel != null) collectedWordLabel.Visible = false;
             HighlightOption(mainMenuOptions, 0);
-            Invalidate(); // Odśwież ekran
+            Invalidate();
         }
 
 
@@ -759,29 +779,16 @@ namespace Game
         // Restartowanie gry
         private void RestartGame()
         {
-            wordsGuessed = 0;
-            totalWords = 6; // Możesz to zmieniać dla różnych poziomów
-            levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}";
-            hpGracza = 3;
-            ClearLetters(); // Czyszczenie liter
-
-            wordsGuessed = 0; // Reset postępu
-            levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}"; // Aktualizacja postępu
-
-            remainingTime = 1000; // Reset czasu
-            selectedTrack = 1; // Reset trasy
-            isPaused = false; // Wyłącz pauzę
-
-            gameTimer.Start(); // Ponowne uruchomienie timera
-            letterTimer.Start();
-            Invalidate(); // Odśwież ekran
+            if (displayedPictureBox != null) displayedPictureBox.Visible = false;
+            StartGame();
+            
         }
 
         private void PauseGame()
         {
             isPaused = true;
-            gameTimer.Stop(); // Zatrzymanie licznika czasu
-            letterTimer.Stop(); // Zatrzymanie ruchu liter
+            gameTimer.Stop(); 
+            letterTimer.Stop(); 
 
             var result = MessageBox.Show("Pauza", "Gra wstrzymana", MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
 
@@ -799,27 +806,17 @@ namespace Game
         private void ResumeGame()
         {
             isPaused = false;
-            gameTimer.Start(); // Wznowienie licznika czasu
-            letterTimer.Start(); // Wznowienie ruchu liter
+            gameTimer.Start(); 
+            letterTimer.Start(); 
         }
 
-        private void InitializeHealthIcons()
-        {
-            healthIcons.Clear();
-            for (int i = 0; i < maxHealth; i++)
-            {
-                healthIcons.Add('♥'); // Dodanie serduszek jako HP
-            }
-        }
+       
 
-        private void DisplayHealthIcons()
-        {
-            Console.WriteLine(string.Join(" ", healthIcons));
-        }
+      
 
         private void PlayCorrectSound()
         {
-            if (audioFiles.Count == 0) return; // Jeśli brak plików, wyjdź
+            if (audioFiles.Count == 0) return; 
 
             try
             {
@@ -838,6 +835,95 @@ namespace Game
             {
                 MessageBox.Show($"Błąd podczas odtwarzania dźwięku: {ex.Message}");
             }
+        }
+        private void HideImage()
+        {
+            if (displayedPictureBox != null)
+            {
+                this.Controls.Remove(displayedPictureBox); 
+                displayedPictureBox.Dispose(); 
+                displayedPictureBox = null;
+            }
+        }
+        private void ShowImage()
+        {
+            if (imgFiles == null || imgFiles.Count == 0)
+            {
+                MessageBox.Show("Brak zdjęć do wyświetlenia.");
+                return;
+            }
+
+            // Sprawdzenie, czy istnieje aktywne zdjęcie i jego ukrycie
+            if (displayedPictureBox != null)
+            {
+                this.Controls.Remove(displayedPictureBox); // Usunięcie poprzedniego zdjęcia z okna
+                displayedPictureBox.Dispose(); // Zwolnienie zasobów
+                displayedPictureBox = null;
+            }
+
+            try
+            {
+                // Wczytanie ścieżki aktualnego obrazu
+                string currentImagePath = imgFiles[currentimgIndex];
+
+                
+                displayedPictureBox = new PictureBox
+                {
+                    Image = Image.FromFile(currentImagePath),
+                    SizeMode = PictureBoxSizeMode.StretchImage, 
+                    Width = 300, 
+                    Height = 300, 
+                    Location = new Point((this.ClientSize.Width - 300) / 2, 50),
+                    BackColor = Color.Transparent 
+                };
+
+                // Dodanie PictureBox do okna gry
+                this.Controls.Add(displayedPictureBox);
+
+              
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Błąd podczas wyświetlania zdjęcia: {ex.Message}");
+            }
+        }
+        private void makeHPlabel()
+        {
+            string hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon3.png");
+
+            if (File.Exists(hpPath))
+            {
+                hpLabel = new PictureBox
+                {
+                    Location = new Point(this.ClientSize.Width - 250, 10),
+                    BackColor = Color.Transparent,
+                    Image = Image.FromFile(hpPath),
+                    Width = 200,  
+                    Height = 150,
+
+                };
+                this.Controls.Add(hpLabel);
+            }
+            else
+            {
+                Console.WriteLine(hpPath);
+                MessageBox.Show("Plik obrazu HP nie został znaleziony: " + hpPath, "Błąd", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            this.Controls.Add(hpLabel);
+        }
+        private void makeCollectedWordLabel()
+        {
+            collectedWordLabel = new Label
+            {
+                Text = "",
+                ForeColor = Color.White,
+                Font = new Font("Arial", 40, FontStyle.Bold),
+                Location = new Point(10, 80), // Pozycja w oknie
+                AutoSize = true,
+                BorderStyle = BorderStyle.FixedSingle,
+            };
+            this.Controls.Add(collectedWordLabel);
         }
     }
 }
