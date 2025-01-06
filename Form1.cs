@@ -24,7 +24,7 @@ namespace Game
         private bool inLevelSelectionMenu = false; // Czy jesteśmy w ekranie wyboru poziomu
 
         private Timer gameTimer; // Timer do odliczania czasu
-        private int remainingTime = 100; // Pozostały czas w sekundach
+        private int remainingTime = 1000; // Pozostały czas w sekundach
         private Label timeLabel; // Etykieta do wyświetlania czasu
         private bool isPaused = false; // Czy gra jest w stanie pauzy
 
@@ -39,12 +39,12 @@ namespace Game
         private List<char> letterValues = new List<char>(); // Lista odpowiadających im liter
         private Random random = new Random(); // Generator losowy dla liter
         private Timer letterTimer; // Timer do przesuwania liter
-        private int letterSpeed = 15; // Prędkość liter
+        private int letterSpeed = 20; // Prędkość liter
         private int letterWidth = 50; // Szerokość prostokąta litery
         private int letterHeight = 50; // Wysokość prostokąta litery
 
         // Zmienne globalne
-        private List<string> wordList = new List<string> { "krowa", "pies", "kot", "kura", "kaczka", "kogut" };
+        private List<string> wordList = new List<string> { "KROWA", "PIES", "KOT", "KURA", "KACZKA", "KOGUT" };
         private string currentWord;
         private int currentIndex = 0;
         private int currentPoints = 0;
@@ -57,12 +57,28 @@ namespace Game
         private string targetWord = "example"; // Słowo do ułożenia
         private int currentLetterIndex = 0; // Indeks aktualnie oczekiwanej litery
         private List<char> healthIcons = new List<char>(); // Lista ikon zdrowia
-
+        private int Interval = 16; // Interwał co 100 ms
 
         private SoundPlayer successSoundPlayer;
 
+        private int letterGenerationCount = 0; // Licznik generowanych liter
+
         // Dodatkowe elementy do wyświetlania zebranych liter
         private Label collectedWordLabel;
+
+        private int timeElapsed = 0; // Czas od ostatniej litery w milisekundach
+
+        string hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon3.png");
+
+        private int currentSoundIndex = 0; // Indeks aktualnego dźwięku
+        private string audioDirectory = "audio"; // Katalog z plikami audio
+        private List<string> audioFiles = new List<string> { Path.Combine(Application.StartupPath, "audio", "0cow.wav"),
+            Path.Combine(Application.StartupPath, "audio", "1dog.wav"),
+            Path.Combine(Application.StartupPath, "audio", "2cat.wav"),
+            Path.Combine(Application.StartupPath, "audio", "3chicken.wav"),
+            Path.Combine(Application.StartupPath, "audio", "4duck.wav"),
+            Path.Combine(Application.StartupPath, "audio", "5cock.wav"),
+    }; // Lista plików audio
 
         public Game()
         {
@@ -85,7 +101,8 @@ namespace Game
             collectedWordLabel = new Label
             {
                 Text = "",
-                Font = new Font("Arial", 16, FontStyle.Bold),
+                ForeColor = Color.White,
+                Font = new Font("Arial", 20, FontStyle.Bold),
                 Location = new Point(10, 80), // Pozycja w oknie
                 AutoSize = true
             };
@@ -112,7 +129,7 @@ namespace Game
 
             // Inicjalizacja timera liter
             letterTimer = new Timer();
-            letterTimer.Interval = 100; // Interwał co 100 ms
+            letterTimer.Interval = 16; // Interwał co 100 ms
             letterTimer.Tick += LetterTimer_Tick;
             letterTimer.Start();
 
@@ -174,11 +191,39 @@ namespace Game
         {
             if (isPaused) return; // Jeśli gra jest wstrzymana, nie wykonujemy aktualizacji liter
 
-            // Dodaj nową literę z prawą krawędzią ekranu co pewien czas
-            if (random.Next(0, 50) < 2) // 2/50 szansy na dodanie litery w każdym interwale (rzadsze litery)
+            timeElapsed += Interval; // Dodajemy czas interwału zegara
+
+            // Sprawdzamy, czy minęła 1 sekunda (1000 ms)
+            if (timeElapsed >= 500)
             {
+                timeElapsed = 0; // Resetujemy licznik czasu
                 int trackY = this.ClientSize.Height - 3 * 150 + random.Next(0, 3) * 150; // Y w zależności od trasy
-                char newLetter = (char)random.Next('A', 'Z' + 1); // Losowa litera
+                char newLetter;
+
+                // Co druga litera jest prawidłowa
+                if (letterGenerationCount % 2 == 0)
+                {
+                    // Pobieramy aktualną oczekiwaną literę z currentWord
+                    if (currentLetterIndex < currentWord.Length)
+                    {
+                        newLetter = currentWord[currentLetterIndex]; // Następna litera w słowie
+                    }
+                    else
+                    {
+                        // Jeśli całe słowo zostało już ułożone, generujemy losową literę
+                        newLetter = (char)random.Next('A', 'Z' + 1);
+                    }
+                }
+                else
+                {
+                    // Generujemy losową literę
+                    newLetter = (char)random.Next('A', 'Z' + 1);
+                }
+
+                // Zwiększamy licznik generowanych liter
+                letterGenerationCount++;
+
+                // Dodaj literę do listy
                 Rectangle newRectangle = new Rectangle(this.ClientSize.Width, trackY + 50, letterWidth, letterHeight); // Prostokąt litery
                 letters.Add(newRectangle);
                 letterValues.Add(newLetter);
@@ -217,15 +262,49 @@ namespace Game
             {
                 if (letters[i].IntersectsWith(characterRect))
                 {
-                    // Kolizja - dodaj punkty i usuń literę
-                    wordsGuessed++;
-                    UpdateProgress(); // Aktualizacja postępu (punkty)
+                    char collidedLetter = letterValues[i]; // Litera, która została zebrana
                     letters.RemoveAt(i);
                     letterValues.RemoveAt(i);
-                    Console.Write(letters[i].ToString());
+
+                    // Sprawdzenie, czy litera jest poprawna, z uwzględnieniem wielkości liter
+                    char expectedLetter = char.ToUpper(currentWord[currentLetterIndex]); // Konwertujemy oczekiwaną literę na wielką literę
+                    char collidedLetterUpper = char.ToUpper(collidedLetter); // Konwertujemy zderzoną literę na wielką literę
+
+                    if (collidedLetterUpper == expectedLetter)
+                    {
+                        collectedWordLabel.Text += currentWord[currentLetterIndex]; // Dodanie oryginalnej litery w odpowiedniej wielkości
+                        currentLetterIndex++; // Przechodzimy do następnej litery
+
+                        // Sprawdzenie, czy całe słowo zostało ułożone
+                        if (currentLetterIndex == currentWord.Length)
+                        {
+                           // MessageBox.Show($"Gratulacje! Ułożyłeś słowo: {currentWord}", "Brawo!");
+                            UpdateProgress();
+                            PlayCorrectSound(); // Odtwórz dźwięk
+                            // Zmiana słowa na następne
+                            currentIndex++;
+                            if (currentIndex >= wordList.Count)
+                            {
+                                MessageBox.Show("Ułożyłeś wszystkie słowa! Gra zakończona!", "Koniec gry");
+                                
+                            }
+                            else
+                            {
+                                currentWord = wordList[currentIndex];
+                                collectedWordLabel.Text = ""; // Reset wyświetlacza zebranych liter
+                                currentLetterIndex = 0; // Reset indeksu liter
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Litera niepoprawna - można tu dodać logikę np. utraty zdrowia
+                        hpLoss(hpPath);
+                    }
                 }
             }
         }
+
 
 
 
@@ -319,11 +398,7 @@ namespace Game
 
         }
 
-        private void PauseLetters()
-        {
-            gameTimer.Stop(); // Zatrzymanie głównego timera gry
-        }
-
+    
 
         // Funkcja wykonująca akcję w zależności od wybranej opcji w menu głównym
         private void ExecuteMainMenuOption(int option)
@@ -408,8 +483,8 @@ namespace Game
                 }
 
                 // Rysowanie postaci
-                int characterWidth = 100;
-                int characterHeight = 100;
+                int characterWidth = 80;
+                int characterHeight = 80;
                 int characterX = 100;
                 int characterY = trackTop + selectedTrack * trackHeight + (trackHeight - characterHeight) / 2;
 
@@ -431,17 +506,34 @@ namespace Game
         // Rozpoczęcie gry
         private void StartGame()
         {
+
+            currentSoundIndex = 0;
+
+            // Inicjalizacja listy plików audio
+            audioFiles = Directory.GetFiles(audioDirectory, "*.wav").ToList(); // Wczytanie plików WAV z katalogu
+
+            // Ustawienie właściwości formularza
+            //this.BackColor = Color.Black; // Tło formularza
+            //this.TransparencyKey = this.BackColor; // Czarny staje się przezroczysty
+
+            // Wczytanie obrazu do tła
+            Bitmap backgroundImage = new Bitmap(Path.Combine(Application.StartupPath, "img", "farm.png")); // Ścieżka do obrazu
+            this.BackgroundImage = backgroundImage; // Ustawienie obrazu jako tła
+            this.BackgroundImageLayout = ImageLayout.Stretch; // Dopasowanie obrazu do rozmiaru okna
+
+
             wordsGuessed = 0;
             totalWords = 6; // Możesz to zmieniać dla różnych poziomów
             levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}";
             hpGracza = 3;
 
-            currentHealth = maxHealth;
+
             currentLetterIndex = 0;
             InitializeHealthIcons();
 
             DisplayHealthIcons();
             MessageBox.Show(wordList[currentIndex]);
+            PlayCorrectSound();
             // Pole na nazwę poziomu
             levelNameLabel = new Label
             {
@@ -489,7 +581,7 @@ namespace Game
 
             inGame = true; // Ustaw tryb gry
             selectedTrack = 1; // Reset trasy
-            remainingTime = 100; // Reset czasu
+            remainingTime = 1000; // Reset czasu
 
             // Włącz widoczność licznika czasu
             timeLabel.Visible = true;
@@ -501,23 +593,32 @@ namespace Game
             }
 
             gameTimer.Start();
+            letterTimer.Start();
             Invalidate(); // Odśwież ekran gry
         }
         private void hpLoss(string hpPath)
         {
-            if(hpPath == Path.Combine(Application.StartupPath, "img", "hp_icon3.png"))
+            hpGracza--;
+            if(hpGracza == 2)//if(hpPath == Path.Combine(Application.StartupPath, "img", "hp_icon3.png"))
             {
+               
                 hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon2.png");
             }
-            else if(hpPath == Path.Combine(Application.StartupPath, "img", "hp_icon2.png"))
+            if(hpGracza == 1)
             {
                 hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon1.png");
+            }
+            hpLabel.Image = Image.FromFile(hpPath);
+            if(hpGracza == 0)
+            {
+                ShowRetryMenu();
             }
             
         }
 
         private void UpdateProgress()
         {
+            wordsGuessed++;
             levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}";
 
             if (wordsGuessed >= totalWords)
@@ -528,6 +629,8 @@ namespace Game
 
         private void EndLevel()
         {
+            gameTimer.Stop();
+            letterTimer.Stop();
             MessageBox.Show("GRATULACJE! Poziom ukończony!");
 
             // Odblokowanie następnego poziomu (jeśli istnieje)
@@ -585,7 +688,7 @@ namespace Game
                 control.Visible = false; // Ukryj elementy planszy
             }
             hpLabel.Visible = false;
-
+            collectedWordLabel.Visible = false;
             HighlightOption(mainMenuOptions, 0);
             Invalidate(); // Odśwież ekran
         }
@@ -656,13 +759,16 @@ namespace Game
         // Restartowanie gry
         private void RestartGame()
         {
-            
+            wordsGuessed = 0;
+            totalWords = 6; // Możesz to zmieniać dla różnych poziomów
+            levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}";
+            hpGracza = 3;
             ClearLetters(); // Czyszczenie liter
 
             wordsGuessed = 0; // Reset postępu
             levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}"; // Aktualizacja postępu
 
-            remainingTime = 100; // Reset czasu
+            remainingTime = 1000; // Reset czasu
             selectedTrack = 1; // Reset trasy
             isPaused = false; // Wyłącz pauzę
 
@@ -711,5 +817,27 @@ namespace Game
             Console.WriteLine(string.Join(" ", healthIcons));
         }
 
+        private void PlayCorrectSound()
+        {
+            if (audioFiles.Count == 0) return; // Jeśli brak plików, wyjdź
+
+            try
+            {
+                // Wczytaj aktualny plik dźwiękowy
+                string currentSoundPath = audioFiles[currentSoundIndex];
+                using (SoundPlayer player = new SoundPlayer(currentSoundPath))
+                {
+                    player.Play(); // Odtwórz dźwięk
+                }
+
+                // Przejdź do kolejnego dźwięku
+                currentSoundIndex++;
+                if (currentSoundIndex >= audioFiles.Count) currentSoundIndex = 0; // Wracamy na początek listy
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Błąd podczas odtwarzania dźwięku: {ex.Message}");
+            }
+        }
     }
 }
