@@ -24,7 +24,7 @@ namespace Game
         private bool inLevelSelectionMenu = false; // Czy jesteśmy w ekranie wyboru poziomu
 
         private Timer gameTimer; // Timer do odliczania czasu
-        private int remainingTime = 10; // Pozostały czas w sekundach
+        private int remainingTime = 100; // Pozostały czas w sekundach
         private Label timeLabel; // Etykieta do wyświetlania czasu
         private bool isPaused = false; // Czy gra jest w stanie pauzy
 
@@ -50,7 +50,19 @@ namespace Game
         private int currentPoints = 0;
         private int targetPoints;
 
+        private int hpGracza = 3;
+
+        private int maxHealth = 3; // Maksymalne zdrowie gracza
+        private int currentHealth;
+        private string targetWord = "example"; // Słowo do ułożenia
+        private int currentLetterIndex = 0; // Indeks aktualnie oczekiwanej litery
+        private List<char> healthIcons = new List<char>(); // Lista ikon zdrowia
+
+
         private SoundPlayer successSoundPlayer;
+
+        // Dodatkowe elementy do wyświetlania zebranych liter
+        private Label collectedWordLabel;
 
         public Game()
         {
@@ -68,6 +80,16 @@ namespace Game
             };
             this.Controls.Add(levelProgressLabel);
 
+            // Ustawienie pierwszego słowa
+            currentWord = wordList[0];
+            collectedWordLabel = new Label
+            {
+                Text = "",
+                Font = new Font("Arial", 16, FontStyle.Bold),
+                Location = new Point(10, 80), // Pozycja w oknie
+                AutoSize = true
+            };
+            this.Controls.Add(collectedWordLabel);
 
             // Tworzenie menu głównego
             mainMenuOptions = new Label[3];
@@ -118,6 +140,19 @@ namespace Game
                 BackColor = Color.Black,
                 Visible = false // Ukryj licznik na początku
             };
+
+            timeLabel = new Label
+            {
+                Text = "Czas: 10s",
+                Location = new Point(this.ClientSize.Width - 100, 10),
+                AutoSize = true,
+                Font = new Font("Arial", 14, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = Color.Black,
+                Visible = false // Ukryj licznik na początku
+            };
+
+           
             this.Controls.Add(timeLabel);
 
 
@@ -187,6 +222,7 @@ namespace Game
                     UpdateProgress(); // Aktualizacja postępu (punkty)
                     letters.RemoveAt(i);
                     letterValues.RemoveAt(i);
+                    Console.Write(letters[i].ToString());
                 }
             }
         }
@@ -325,6 +361,7 @@ namespace Game
 
         // Funkcja wykonująca akcję w zależności od wybranego poziomu
         private int selectedTrack = 1; // Wybrany tor (0 - górny, 1 - środkowy, 2 - dolny)
+        private Label hpLabel;
         private bool inGame = false; // Czy jesteśmy w trybie gry
 
         private void ExecuteLevelSelectionOption(int option)
@@ -371,12 +408,14 @@ namespace Game
                 }
 
                 // Rysowanie postaci
-                int characterWidth = 50;
-                int characterHeight = 50;
+                int characterWidth = 100;
+                int characterHeight = 100;
                 int characterX = 100;
                 int characterY = trackTop + selectedTrack * trackHeight + (trackHeight - characterHeight) / 2;
 
-                g.FillRectangle(Brushes.Red, characterX, characterY, characterWidth, characterHeight);
+                Image characterImage = Image.FromFile("img/stick.png");
+                g.DrawImage(characterImage, characterX, characterY, characterWidth, characterHeight);
+
 
                 // Rysowanie liter
                 for (int i = 0; i < letters.Count; i++)
@@ -395,7 +434,14 @@ namespace Game
             wordsGuessed = 0;
             totalWords = 6; // Możesz to zmieniać dla różnych poziomów
             levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}";
+            hpGracza = 3;
 
+            currentHealth = maxHealth;
+            currentLetterIndex = 0;
+            InitializeHealthIcons();
+
+            DisplayHealthIcons();
+            MessageBox.Show(wordList[currentIndex]);
             // Pole na nazwę poziomu
             levelNameLabel = new Label
             {
@@ -420,11 +466,30 @@ namespace Game
             };
             this.Controls.Add(levelProgressLabel);
 
+            string hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon3.png");
 
+            if (File.Exists(hpPath))
+            {
+                hpLabel = new Label
+                {
+                    Location = new Point(this.ClientSize.Width - 250, 10),
+                    BackColor = Color.Transparent,
+                    Image = Image.FromFile(hpPath),
+                    ImageAlign = ContentAlignment.MiddleCenter
+                };
+                this.Controls.Add(hpLabel);
+            }
+            else
+            {
+                Console.WriteLine(hpPath);
+                MessageBox.Show("Plik obrazu HP nie został znaleziony: " + hpPath, "Błąd", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            this.Controls.Add(hpLabel);
 
             inGame = true; // Ustaw tryb gry
             selectedTrack = 1; // Reset trasy
-            remainingTime = 10; // Reset czasu
+            remainingTime = 100; // Reset czasu
 
             // Włącz widoczność licznika czasu
             timeLabel.Visible = true;
@@ -437,6 +502,18 @@ namespace Game
 
             gameTimer.Start();
             Invalidate(); // Odśwież ekran gry
+        }
+        private void hpLoss(string hpPath)
+        {
+            if(hpPath == Path.Combine(Application.StartupPath, "img", "hp_icon3.png"))
+            {
+                hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon2.png");
+            }
+            else if(hpPath == Path.Combine(Application.StartupPath, "img", "hp_icon2.png"))
+            {
+                hpPath = Path.Combine(Application.StartupPath, "img", "hp_icon1.png");
+            }
+            
         }
 
         private void UpdateProgress()
@@ -507,6 +584,7 @@ namespace Game
             {
                 control.Visible = false; // Ukryj elementy planszy
             }
+            hpLabel.Visible = false;
 
             HighlightOption(mainMenuOptions, 0);
             Invalidate(); // Odśwież ekran
@@ -548,18 +626,12 @@ namespace Game
             }
         }
 
-        private void GameOver()
-        {
-            inGame = false; // Wyłącz tryb gry
-            PauseLetters(); // Zatrzymaj litery
-
-            MessageBox.Show("Przegrałeś! Spróbuj ponownie.", "Koniec gry", MessageBoxButtons.OK);
-
-            RestartGame(); // Opcjonalnie: Restart gry po przegranej
-        }
+       
 
         private void ShowRetryMenu()
         {
+            gameTimer.Stop();
+            letterTimer.Stop();
             var result = MessageBox.Show("Spróbuj jeszcze raz!", "Koniec gry",
                 MessageBoxButtons.RetryCancel, MessageBoxIcon.Information);
 
@@ -584,16 +656,18 @@ namespace Game
         // Restartowanie gry
         private void RestartGame()
         {
+            
             ClearLetters(); // Czyszczenie liter
 
             wordsGuessed = 0; // Reset postępu
             levelProgressLabel.Text = $"{wordsGuessed}/{totalWords}"; // Aktualizacja postępu
 
-            remainingTime = 10; // Reset czasu
+            remainingTime = 100; // Reset czasu
             selectedTrack = 1; // Reset trasy
             isPaused = false; // Wyłącz pauzę
 
             gameTimer.Start(); // Ponowne uruchomienie timera
+            letterTimer.Start();
             Invalidate(); // Odśwież ekran
         }
 
@@ -622,79 +696,20 @@ namespace Game
             gameTimer.Start(); // Wznowienie licznika czasu
             letterTimer.Start(); // Wznowienie ruchu liter
         }
-        /*
-        // Metoda do sprawdzania litery
-        private void CheckLetter(char letter)
+
+        private void InitializeHealthIcons()
         {
-            // Sprawdzamy, czy litera jest poprawna
-            if (letter == currentWord[currentIndex])
+            healthIcons.Clear();
+            for (int i = 0; i < maxHealth; i++)
             {
-                Console.WriteLine($"Prawidłowa litera: {letter}"); // Debug
-
-                // Wyświetlenie litery na środku ekranu
-                DisplayLetter(letter);
-
-                currentIndex++; // Przechodzimy do następnej litery
-
-                // Jeśli całe słowo zostało ułożone
-                if (currentIndex == currentWord.Length)
-                {
-                    Console.WriteLine($"Ułożono słowo: {currentWord}");
-                    PlaySuccessSound(); // Odtwórz dźwięk sukcesu
-                    currentPoints++;
-
-                    if (currentPoints == targetPoints)
-                    {
-                        Console.WriteLine("Wygrana poziomu!");
-                        LevelComplete(); // Metoda do obsługi końca poziomu
-                    }
-                    else
-                    {
-                        // Przechodzimy do następnego słowa
-                        currentWord = wordList[currentPoints];
-                        currentIndex = 0;
-                    }
-                }
-            }
-            else
-            {
-                Console.WriteLine($"Nieprawidłowa litera: {letter}"); // Debug
+                healthIcons.Add('♥'); // Dodanie serduszek jako HP
             }
         }
-        */
-        /*
-        // Wyświetlenie litery na środku ekranu
-        private void DisplayLetter(char letter)
-        {
-            // Przyjmijmy, że masz `Label` o nazwie `lblLetter`
-            lblLetter.Text = letter.ToString();
-            lblLetter.TextAlign = ContentAlignment.MiddleCenter;
-        }
 
-
-        // Odtwarzanie dźwięku sukcesu
-        private void PlaySuccessSound()
+        private void DisplayHealthIcons()
         {
-            Debug.Log("Dźwięk sukcesu!"); // Debug
-                                          // Dodaj kod do odtwarzania dźwięku (np. AudioSource.Play())
+            Console.WriteLine(string.Join(" ", healthIcons));
         }
-        */
-        // Obsługa końca poziomu
-        private void LevelComplete()
-        {
-            // Wyświetl wiadomość lub przejdź do następnego poziomu
-            MessageBox.Show("Gratulacje! Ukończyłeś poziom!");
-            this.Close(); // Zamknięcie formularza
-        }
-
-        /*
-        // Przykładowy kod obsługi dotyku / kliknięcia litery
-        void OnMouseDown()
-        {
-            char clickedLetter = gameObject.name[0]; // Przyjmujemy, że nazwa obiektu to litera
-            CheckLetter(clickedLetter);
-        }
-        */
 
     }
 }
